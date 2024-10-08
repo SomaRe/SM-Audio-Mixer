@@ -66,10 +66,14 @@ const SVGVolumeCurveEditor = () => {
       const waveformData = [];
       for (let i = 0; i < samples; i++) {
         let sum = 0;
+        let min = 1.0;
+        let max = -1.0;
         for (let j = 0; j < blockSize; j++) {
-          sum += Math.abs(rawData[i * blockSize + j]);
+          const sample = rawData[i * blockSize + j];
+          if (sample < min) min = sample;
+          if (sample > max) max = sample;
         }
-        waveformData.push(sum / blockSize);
+        waveformData.push({ min, max });
       }
       setWaveform(waveformData);
       // Normalize initial points
@@ -316,26 +320,19 @@ const SVGVolumeCurveEditor = () => {
 
   const drawWaveform = () => {
     if (waveform.length === 0) return '';
-
-    const waveWidth = svgWidth;
-    const waveHeight = svgHeight / 2;
-    const step = waveWidth / waveform.length;
-    const path = [];
+    const centerY = svgHeight / 2;
+    const step = svgWidth / waveform.length;
+    let path = '';
 
     waveform.forEach((point, index) => {
       const x = index * step;
-      const y = verticalPadding + waveHeight - point * waveHeight;
-      if (index === 0) {
-        path.push(`M ${x} ${y}`);
-      } else {
-        path.push(`L ${x} ${y}`);
-      }
+      const yMin = centerY - (point.max * centerY);
+      const yMax = centerY - (point.min * centerY);
+      path += `M ${x} ${yMin} L ${x} ${yMax} `;
     });
 
-    return path.join(' ');
+    return path.trim();
   };
-
-  const waveformPath = drawWaveform();
 
   const getPlayheadPosition = () => {
     if (duration === 0) return 0;
@@ -344,133 +341,131 @@ const SVGVolumeCurveEditor = () => {
   };
 
   return (
-    <>
-      <div className="w-full max-w-full mx-auto p-4 overflow-visible">
-        <div style={{ marginBottom: '20px' }}>
-          <input type="file" accept="audio/*" onChange={handleAudioUpload} />
-          <button onClick={playAudio} disabled={!audioBuffer} style={{ marginLeft: '10px' }}>
-            Play
-          </button>
-          <button onClick={pauseAudio} disabled={!audioBuffer} style={{ marginLeft: '10px' }}>
-            Pause
-          </button>
-        </div>
-        <div
-          style={{
-            width: `${svgWidth}px`,
-            height: `${svgHeight}px`,
-            position: 'relative',
-            overflow: 'visible',
-            border: '1px solid #ccc',
+    <div className="w-full max-w-full mx-auto p-4 overflow-visible bg-base-300 rounded-lg shadow-lg">
+      <div className="mb-4">
+        <input type="file" accept="audio/*" onChange={handleAudioUpload} className="file-input file-input-bordered file-input-primary w-full max-w-xs" />
+        <button onClick={playAudio} disabled={!audioBuffer} className="btn btn-primary ml-2">
+          Play
+        </button>
+        <button onClick={pauseAudio} disabled={!audioBuffer} className="btn btn-secondary ml-2">
+          Pause
+        </button>
+      </div>
+      <div className="relative w-full h-[200px] overflow-visible">
+        <svg
+          ref={svgRef}
+          width={svgWidth}
+          height={totalHeight}
+          viewBox={`0 0 ${svgWidth} ${totalHeight}`}
+          className="w-full h-full rounded-lg bg-base-100 shadow-inner"
+          onMouseMove={(e) => drag(e.clientX, e.clientY)}
+          onMouseUp={endDragging}
+          onMouseLeave={endDragging}
+          onTouchMove={(e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            drag(touch.clientX, touch.clientY);
           }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            endDragging();
+          }}
+          onClick={(e) => handleSeek(e.clientX)}
         >
-          <svg
-            ref={svgRef}
-            width={svgWidth}
-            height={totalHeight}
-            viewBox={`0 0 ${svgWidth} ${totalHeight}`}
-            className="border border-gray-300 select-none touch-none"
-            onMouseMove={(e) => drag(e.clientX, e.clientY)}
-            onMouseUp={endDragging}
-            onMouseLeave={endDragging}
-            onTouchMove={(e) => {
+          <defs>
+            <linearGradient id="waveformGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgba(255,255,255,0.2)" />
+              <stop offset="100%" stopColor="rgba(255,255,255,0.05)" />
+            </linearGradient>
+          </defs>
+          {/* Waveform */}
+          <path
+            d={drawWaveform()}
+            fill="none"
+            stroke="url(#waveformGradient)"
+            strokeWidth={1}
+          />
+          {/* Volume Curve */}
+          <path
+            d={pathD}
+            fill="none"
+            stroke="oklch(var(--p))"
+            strokeWidth={lineThickness}
+            className="transition-all duration-100 ease-in-out"
+            onMouseDown={(e) => addPoint(e.clientX, e.clientY)}
+            onTouchStart={(e) => {
               e.preventDefault();
               const touch = e.touches[0];
-              drag(touch.clientX, touch.clientY);
+              addPoint(touch.clientX, touch.clientY);
             }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              endDragging();
-            }}
-            onClick={(e) => handleSeek(e.clientX)}
-          >
-            {/* Waveform */}
-            <path
-              d={waveformPath}
-              fill="none"
-              stroke="lightgray"
-              strokeWidth={1}
-            />
-            {/* Volume Curve */}
-            <path
-              d={pathD}
-              fill="none"
-              stroke="blue"
-              strokeWidth={lineThickness}
-              onMouseDown={(e) => addPoint(e.clientX, e.clientY)}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                const touch = e.touches[0];
-                addPoint(touch.clientX, touch.clientY);
-              }}
-            />
-            {/* Playhead */}
-            <line
-              x1={getPlayheadPosition()}
-              y1={0}
-              x2={getPlayheadPosition()}
-              y2={totalHeight}
-              stroke="green"
-              strokeWidth={2}
-              pointerEvents="none"
-            />
-            {/* Points */}
-            {points.map((point) => {
-              const isActive =
-                point.id === draggedPointId || point.id === focusedPointId;
-              const percentY = (point.y / svgHeight) * 100;
-              const screenX = point.x;
-              const screenY = dataYToScreenY(point.y);
-              const { x: textX, y: textY, textAnchor } = getTextPosition(
-                screenX,
-                point.y
-              );
-              return (
-                <g key={point.id}>
-                  <circle
-                    cx={screenX}
-                    cy={screenY}
-                    r={pointRadius}
-                    fill="red"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      startDragging(point.id, e.clientX, e.clientY);
-                    }}
-                    onTouchStart={(e) => {
-                      e.preventDefault();
-                      const touch = e.touches[0];
-                      startDragging(point.id, touch.clientX, touch.clientY);
-                    }}
-                    onDoubleClick={() => removePoint(point.id)}
-                    onTouchEnd={(e) => handleTap(point.id, e)}
-                    onMouseEnter={() => setFocusedPointId(point.id)}
-                    onMouseLeave={() => setFocusedPointId(null)}
-                  />
-                  {isActive && (
-                    <text
-                      x={textX}
-                      y={textY}
-                      fontSize={percentageTextSize}
-                      textAnchor={textAnchor}
-                      fill="black"
-                    >
-                      {`${percentY.toFixed(0)}%`}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
-        </div>
+          />
+          {/* Playhead */}
+          <line
+            x1={getPlayheadPosition()}
+            y1={0}
+            x2={getPlayheadPosition()}
+            y2={totalHeight}
+            stroke="oklch(var(--s))"
+            strokeWidth={2}
+            pointerEvents="none"
+          />
+          {/* Points */}
+          {points.map((point) => {
+            const isActive =
+              point.id === draggedPointId || point.id === focusedPointId;
+            const percentY = (point.y / svgHeight) * 100;
+            const screenX = point.x;
+            const screenY = dataYToScreenY(point.y);
+            const { x: textX, y: textY, textAnchor } = getTextPosition(
+              screenX,
+              point.y
+            );
+            return (
+              <g key={point.id}>
+                <circle
+                  cx={screenX}
+                  cy={screenY}
+                  r={pointRadius}
+                  className="fill-secondary hover:fill-secondary-focus transition-colors duration-300"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    startDragging(point.id, e.clientX, e.clientY);
+                  }}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    startDragging(point.id, touch.clientX, touch.clientY);
+                  }}
+                  onDoubleClick={() => removePoint(point.id)}
+                  onTouchEnd={(e) => handleTap(point.id, e)}
+                  onMouseEnter={() => setFocusedPointId(point.id)}
+                  onMouseLeave={() => setFocusedPointId(null)}
+                />
+                {isActive && (
+                  <text
+                    x={textX}
+                    y={textY}
+                    fontSize={percentageTextSize}
+                    textAnchor={textAnchor}
+                    fill="oklch(var(--nc))"
+                    className="font-semibold"
+                  >
+                    {`${percentY.toFixed(0)}%`}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
       </div>
-      <p className="text-sm text-center mt-2">
+      <p className="text-sm text-center mt-2 text-base-content">
         Tap on the line to add points. Drag to move. Double-tap to remove.
         {getCurrentPercentage() !== null && ` Current point: ${getCurrentPercentage()}%`}
       </p>
-      <p className="text-sm text-center mt-2">
-  Current Time: {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
-</p>
-    </>
+      <p className="text-sm text-center mt-2 text-base-content">
+        Current Time: {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
+      </p>
+    </div>
   );
 };
 
