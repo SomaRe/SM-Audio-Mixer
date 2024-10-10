@@ -9,18 +9,16 @@ import InfoText from "./components/InfoText";
 const SVGVolumeCurveEditor = () => {
   // Constants
   const svgWidth = 1000;
-  const svgHeight = 200;
+  const svgHeight = 150;
   const pointRadius = 10;
   const lineThickness = 5;
   const percentageTextSize = 20;
   const textPadding = 5;
-  const verticalPadding = pointRadius;
-  const totalHeight = svgHeight + verticalPadding * 2;
 
   // State Management
   const [points, setPoints] = useState([
-    { id: 0, x: 0, y: svgHeight },
-    { id: 1, x: svgWidth, y: svgHeight },
+    { id: 0, x: 0, y: 0 }, 
+    { id: 1, x: svgWidth, y: 0 }, // Volume 0%
   ]);
   const [nextId, setNextId] = useState(2);
   const [draggedPointId, setDraggedPointId] = useState(null);
@@ -39,7 +37,6 @@ const SVGVolumeCurveEditor = () => {
   const sourceNodeRef = useRef(null);
   const animationFrameRef = useRef(null);
   const playStartTimeRef = useRef(0);
-
 
   // Initialize Audio Context
   useEffect(() => {
@@ -89,8 +86,8 @@ const SVGVolumeCurveEditor = () => {
       setWaveform(waveformData);
       // Normalize initial points
       setPoints([
-        { id: 0, x: 0, y: svgHeight },
-        { id: 1, x: svgWidth, y: svgHeight },
+        { id: 0, x: 0, y: 0 },
+        { id: 1, x: svgWidth, y: 0 },
       ]);
       setCurrentTime(0); // Reset currentTime when new audio is loaded
     }
@@ -100,8 +97,7 @@ const SVGVolumeCurveEditor = () => {
   const handleSeek = (clientX) => {
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-    const scrollLeft = svg.parentElement.scrollLeft;
-    const x = clientX - rect.left + scrollLeft;
+    const x = clientX - rect.left;
     const clampedX = Math.max(0, Math.min(svgWidth, x));
     const relativeTime = clampedX / svgWidth;
     setCurrentTime(relativeTime * duration);
@@ -121,24 +117,23 @@ const SVGVolumeCurveEditor = () => {
     }
   };
 
-const playAudio = () => {
-  if (audioBuffer) {
-    stopAudio();
+  const playAudio = () => {
+    if (audioBuffer) {
+      stopAudio();
 
-    const source = audioContextRef.current.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(gainNodeRef.current);
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(gainNodeRef.current);
 
-    playStartTimeRef.current = audioContextRef.current.currentTime - currentTime;
-    source.start(0, currentTime);
-    sourceNodeRef.current = source;
+      playStartTimeRef.current = audioContextRef.current.currentTime - currentTime;
+      source.start(0, currentTime);
+      sourceNodeRef.current = source;
 
-    setCurrentTime(currentTime);
+      setCurrentTime(currentTime);
 
-    animationFrameRef.current = requestAnimationFrame(updateVolume);
-  }
-};
-
+      animationFrameRef.current = requestAnimationFrame(updateVolume);
+    }
+  };
 
   const pauseAudio = () => {
     if (sourceNodeRef.current) {
@@ -163,7 +158,7 @@ const playAudio = () => {
   const updateVolume = () => {
     if (audioContextRef.current && gainNodeRef.current && duration > 0) {
       const currentPlaybackTime =
-        audioContextRef.current.currentTime -playStartTimeRef.current;
+        audioContextRef.current.currentTime - playStartTimeRef.current;
 
       // Update currentTime state
       setCurrentTime(currentPlaybackTime);
@@ -192,9 +187,9 @@ const playAudio = () => {
       // Linear interpolation for volume
       const proportion = (x - leftPoint.x) / (rightPoint.x - leftPoint.x);
       const volume = (
-        (leftPoint.y + (rightPoint.y - leftPoint.y) * proportion) /
+        1 - ((leftPoint.y + (rightPoint.y - leftPoint.y) * proportion) /
         svgHeight
-      ).toFixed(2);
+      )).toFixed(2);
       setCurrentVolume(volume);
 
       gainNodeRef.current.gain.setValueAtTime(
@@ -215,22 +210,16 @@ const playAudio = () => {
     const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
 
     const x = Math.max(0, Math.min(svgWidth, svgP.x));
-    let y = screenYToDataY(svgP.y);
-    y = Math.max(0, Math.min(svgHeight, y));
+    let y = Math.max(0, Math.min(svgHeight, svgP.y));
 
     return { x, y };
   };
 
-  const screenYToDataY = (screenY) => {
-    return svgHeight - (screenY - verticalPadding);
-  };
-
-  const dataYToScreenY = (dataY) => {
-    return verticalPadding + (svgHeight - dataY);
-  };
-
   const addPoint = (clientX, clientY) => {
     const { x, y } = getSVGCoordinates(clientX, clientY);
+    // Prevent adding points at the extreme edges
+    if (x === 0 || x === svgWidth) return;
+
     const newPoint = { id: nextId, x, y };
     const newPoints = [...points, newPoint].sort((a, b) => a.x - b.x);
     setPoints(newPoints);
@@ -253,10 +242,13 @@ const playAudio = () => {
             let newPoint = { ...point, y };
             if (point.id === firstPointId) {
               newPoint.x = 0; // Lock x-coordinate for the first point
+              newPoint.y = y; // Allow y-coordinate change
             } else if (point.id === lastPointId) {
               newPoint.x = svgWidth; // Lock x-coordinate for the last point
+              newPoint.y = y; // Allow y-coordinate change
             } else {
               newPoint.x = x; // Allow x-coordinate change for other points
+              newPoint.y = y;
             }
             return newPoint;
           } else {
@@ -299,7 +291,7 @@ const playAudio = () => {
     if (points.length < 2) return "";
 
     const path = [];
-    path.push(`M ${points[0].x} ${dataYToScreenY(points[0].y)}`);
+    path.push(`M ${points[0].x} ${points[0].y}`);
 
     for (let i = 0; i < points.length - 1; i++) {
       const p0 = points[i];
@@ -307,9 +299,7 @@ const playAudio = () => {
       const midX = (p0.x + p1.x) / 2;
 
       path.push(
-        `C ${midX} ${dataYToScreenY(p0.y)}, ${midX} ${dataYToScreenY(p1.y)}, ${
-          p1.x
-        } ${dataYToScreenY(p1.y)}`
+        `C ${midX} ${p0.y}, ${midX} ${p1.y}, ${p1.x} ${p1.y}`
       );
     }
 
@@ -323,7 +313,7 @@ const playAudio = () => {
     if (activePointId !== null) {
       const activePoint = points.find((point) => point.id === activePointId);
       if (activePoint) {
-        return ((activePoint.y / svgHeight) * 100).toFixed(0);
+        return (100 - ((activePoint.y / svgHeight) * 100).toFixed(0));
       }
     }
     return null;
@@ -331,7 +321,7 @@ const playAudio = () => {
 
   const getTextPosition = (x, y) => {
     let textX = x;
-    let textY = dataYToScreenY(y) - 10;
+    let textY = y - 10; // Adjust vertically by 10 pixels
     let textAnchor = "middle";
 
     if (x < percentageTextSize * 2) {
@@ -342,8 +332,8 @@ const playAudio = () => {
       textAnchor = "end";
     }
 
-    if (y > svgHeight - percentageTextSize - textPadding) {
-      textY = dataYToScreenY(y) + percentageTextSize + textPadding;
+    if (y < percentageTextSize + textPadding) { // Adjust condition based on new Y
+      textY = y + percentageTextSize + textPadding;
     }
 
     return { x: textX, y: textY, textAnchor };
@@ -380,14 +370,15 @@ const playAudio = () => {
         stopAudio={stopAudio}
         audioBuffer={audioBuffer}
       />
-      <div className="relative w-full h-full overflow-visible">
+      <div className="relative w-full h-full overflow-visible flex justify-center">
         <div style={{ minWidth: svgWidth }}>
           <svg
             ref={svgRef}
             width={svgWidth}
-            height={totalHeight}
-            viewBox={`0 0 ${svgWidth} ${totalHeight}`}
-            className="w-full rounded-lg bg-base-100 shadow-inner"
+            height={svgHeight}
+            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+            overflow={"visible"}
+            className="rounded-lg bg-base-100 shadow-inner"
             onMouseMove={(e) => drag(e.clientX, e.clientY)}
             onMouseUp={endDragging}
             onMouseLeave={endDragging}
@@ -434,24 +425,25 @@ const playAudio = () => {
             {/* Playhead */}
             <Playhead
               position={getPlayheadPosition()}
-              totalHeight={totalHeight}
+              height={svgHeight}
             />
             {/* Points */}
             {points.map((point) => {
               const isActive =
                 point.id === draggedPointId || point.id === focusedPointId;
-              const percentY = (point.y / svgHeight) * 100;
+              const percentY = (1 - point.y / svgHeight) * 100;
               const screenX = point.x;
-              const screenY = dataYToScreenY(point.y);
+              const screenY = point.y;
               const {
                 x: textX,
                 y: textY,
                 textAnchor,
-              } = getTextPosition(screenX, point.y);
+              } = getTextPosition(screenX, screenY);
               return (
                 <Point
                   key={point.id}
                   point={point}
+                  pointRadius={pointRadius}
                   isActive={isActive}
                   percentY={percentY}
                   screenX={screenX}

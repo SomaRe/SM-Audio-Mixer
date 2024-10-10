@@ -2,6 +2,7 @@ import React from 'react';
 
 const Point = ({
   point,
+  pointRadius,
   isActive,
   percentY,
   screenX,
@@ -24,8 +25,8 @@ const Point = ({
       <circle
         cx={screenX}
         cy={screenY}
-        r={10} // pointRadius
-        className="fill-secondary hover:fill-secondary-focus transition-colors duration-300"
+        r={pointRadius}
+        className="fill-secondary hover:fill-secondary-focus transition-colors duration-300 cursor-pointer"
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
         onDoubleClick={handleDoubleClick}

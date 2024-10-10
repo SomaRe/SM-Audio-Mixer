@@ -7,7 +7,7 @@ const VolumeCurve = ({ pathD, lineThickness, onMouseDown, onTouchStart }) => {
       fill="none"
       stroke="oklch(var(--p))"
       strokeWidth={lineThickness}
-      className="transition-all duration-100 ease-in-out"
+      className="transition-all duration-100 ease-in-out cursor-pointer"
       onMouseDown={onMouseDown}
       onTouchStart={onTouchStart}
     />
