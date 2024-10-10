@@ -1,7 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
+import AudioControls from "./components/AudioControls";
+import Waveform from "./components/Waveform";
+import VolumeCurve from "./components/VolumeCurve";
+import Playhead from "./components/Playhead";
+import Point from "./components/Point";
+import InfoText from "./components/InfoText";
 
 const SVGVolumeCurveEditor = () => {
-  const svgWidth = 800;
+  // Constants
+  const svgWidth = 1000;
   const svgHeight = 200;
   const pointRadius = 10;
   const lineThickness = 5;
@@ -10,6 +17,7 @@ const SVGVolumeCurveEditor = () => {
   const verticalPadding = pointRadius;
   const totalHeight = svgHeight + verticalPadding * 2;
 
+  // State Management
   const [points, setPoints] = useState([
     { id: 0, x: 0, y: svgHeight },
     { id: 1, x: svgWidth, y: svgHeight },
@@ -18,7 +26,8 @@ const SVGVolumeCurveEditor = () => {
   const [draggedPointId, setDraggedPointId] = useState(null);
   const [focusedPointId, setFocusedPointId] = useState(null);
   const [lastTap, setLastTap] = useState({ id: null, time: 0 });
-  const [currentTime, setCurrentTime] = useState(0); // New state
+  const [currentTime, setCurrentTime] = useState(0);
+  const [currentVolume, setCurrentVolume] = useState(1);
   const svgRef = useRef(null);
 
   // Audio-related states and refs
@@ -29,10 +38,13 @@ const SVGVolumeCurveEditor = () => {
   const gainNodeRef = useRef(null);
   const sourceNodeRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const playStartTimeRef = useRef(0);
 
+
+  // Initialize Audio Context
   useEffect(() => {
-    // Initialize Audio Context
-    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    audioContextRef.current = new (window.AudioContext ||
+      window.webkitAudioContext)();
     gainNodeRef.current = audioContextRef.current.createGain();
     gainNodeRef.current.connect(audioContextRef.current.destination);
 
@@ -42,7 +54,7 @@ const SVGVolumeCurveEditor = () => {
       }
     };
 
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
     return () => {
       // Cleanup
       if (sourceNodeRef.current) {
@@ -50,7 +62,7 @@ const SVGVolumeCurveEditor = () => {
       }
       gainNodeRef.current.disconnect();
       audioContextRef.current.close();
-      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener("touchmove", handleTouchMove);
       cancelAnimationFrame(animationFrameRef.current);
     };
   }, [draggedPointId]);
@@ -65,7 +77,6 @@ const SVGVolumeCurveEditor = () => {
       const blockSize = Math.floor(rawData.length / samples);
       const waveformData = [];
       for (let i = 0; i < samples; i++) {
-        let sum = 0;
         let min = 1.0;
         let max = -1.0;
         for (let j = 0; j < blockSize; j++) {
@@ -85,29 +96,22 @@ const SVGVolumeCurveEditor = () => {
     }
   }, [audioBuffer]);
 
+  // Handler functions
   const handleSeek = (clientX) => {
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-    const x = clientX - rect.left;
+    const scrollLeft = svg.parentElement.scrollLeft;
+    const x = clientX - rect.left + scrollLeft;
     const clampedX = Math.max(0, Math.min(svgWidth, x));
     const relativeTime = clampedX / svgWidth;
     setCurrentTime(relativeTime * duration);
   };
 
-  /**
-   * Handles an audio file being uploaded to the input field.
-   *
-   * Reads the uploaded file as an array buffer and decodes it using the
-   * Web Audio API. When the audio buffer is decoded, it is stored in the
-   * component state.
-   *
-   * @param {Event} event - The input field change event.
-   */
   const handleAudioUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = function (e) {
         const arrayBuffer = e.target.result;
         audioContextRef.current.decodeAudioData(arrayBuffer, (buffer) => {
           setAudioBuffer(buffer);
@@ -117,20 +121,24 @@ const SVGVolumeCurveEditor = () => {
     }
   };
 
-  const playAudio = () => {
-    if (audioBuffer) {
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(gainNodeRef.current);
-      
-      // Calculate offset to resume playback from currentTime
-      source.start(0, currentTime);
-      sourceNodeRef.current = source;
+const playAudio = () => {
+  if (audioBuffer) {
+    stopAudio();
 
-      // Start animation loop for synchronization
-      animationFrameRef.current = requestAnimationFrame(updateVolume);
-    }
-  };
+    const source = audioContextRef.current.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(gainNodeRef.current);
+
+    playStartTimeRef.current = audioContextRef.current.currentTime - currentTime;
+    source.start(0, currentTime);
+    sourceNodeRef.current = source;
+
+    setCurrentTime(currentTime);
+
+    animationFrameRef.current = requestAnimationFrame(updateVolume);
+  }
+};
+
 
   const pauseAudio = () => {
     if (sourceNodeRef.current) {
@@ -138,16 +146,28 @@ const SVGVolumeCurveEditor = () => {
       sourceNodeRef.current.disconnect();
       sourceNodeRef.current = null;
       cancelAnimationFrame(animationFrameRef.current);
+      setCurrentTime(audioContextRef.current.currentTime - playStartTimeRef.current);
     }
+  };
+
+  const stopAudio = () => {
+    if (sourceNodeRef.current) {
+      sourceNodeRef.current.stop();
+      sourceNodeRef.current.disconnect();
+      sourceNodeRef.current = null;
+    }
+    cancelAnimationFrame(animationFrameRef.current);
+    setCurrentTime(0);
   };
 
   const updateVolume = () => {
     if (audioContextRef.current && gainNodeRef.current && duration > 0) {
-      const currentPlaybackTime = audioContextRef.current.currentTime + currentTime;
-      
+      const currentPlaybackTime =
+        audioContextRef.current.currentTime -playStartTimeRef.current;
+
       // Update currentTime state
       setCurrentTime(currentPlaybackTime);
-      
+
       const relativeTime = currentPlaybackTime / duration;
       if (relativeTime >= 1) {
         pauseAudio();
@@ -171,9 +191,16 @@ const SVGVolumeCurveEditor = () => {
 
       // Linear interpolation for volume
       const proportion = (x - leftPoint.x) / (rightPoint.x - leftPoint.x);
-      const volume = ((leftPoint.y + (rightPoint.y - leftPoint.y) * proportion) / svgHeight).toFixed(2);
+      const volume = (
+        (leftPoint.y + (rightPoint.y - leftPoint.y) * proportion) /
+        svgHeight
+      ).toFixed(2);
+      setCurrentVolume(volume);
 
-      gainNodeRef.current.gain.setValueAtTime(volume, audioContextRef.current.currentTime);
+      gainNodeRef.current.gain.setValueAtTime(
+        volume,
+        audioContextRef.current.currentTime
+      );
     }
 
     // Continue the loop
@@ -258,14 +285,18 @@ const SVGVolumeCurveEditor = () => {
   };
 
   const removePoint = (id) => {
-    if (points.length > 2 && id !== points[0].id && id !== points[points.length - 1].id) {
+    if (
+      points.length > 2 &&
+      id !== points[0].id &&
+      id !== points[points.length - 1].id
+    ) {
       const newPoints = points.filter((point) => point.id !== id);
       setPoints(newPoints);
     }
   };
 
   const generateBezierPath = () => {
-    if (points.length < 2) return '';
+    if (points.length < 2) return "";
 
     const path = [];
     path.push(`M ${points[0].x} ${dataYToScreenY(points[0].y)}`);
@@ -276,13 +307,13 @@ const SVGVolumeCurveEditor = () => {
       const midX = (p0.x + p1.x) / 2;
 
       path.push(
-        `C ${midX} ${dataYToScreenY(p0.y)}, ${midX} ${dataYToScreenY(
-          p1.y
-        )}, ${p1.x} ${dataYToScreenY(p1.y)}`
+        `C ${midX} ${dataYToScreenY(p0.y)}, ${midX} ${dataYToScreenY(p1.y)}, ${
+          p1.x
+        } ${dataYToScreenY(p1.y)}`
       );
     }
 
-    return path.join(' ');
+    return path.join(" ");
   };
 
   const pathD = generateBezierPath();
@@ -290,7 +321,7 @@ const SVGVolumeCurveEditor = () => {
   const getCurrentPercentage = () => {
     const activePointId = draggedPointId || focusedPointId;
     if (activePointId !== null) {
-      const activePoint = points.find(point => point.id === activePointId);
+      const activePoint = points.find((point) => point.id === activePointId);
       if (activePoint) {
         return ((activePoint.y / svgHeight) * 100).toFixed(0);
       }
@@ -319,15 +350,15 @@ const SVGVolumeCurveEditor = () => {
   };
 
   const drawWaveform = () => {
-    if (waveform.length === 0) return '';
+    if (waveform.length === 0) return "";
     const centerY = svgHeight / 2;
     const step = svgWidth / waveform.length;
-    let path = '';
+    let path = "";
 
     waveform.forEach((point, index) => {
       const x = index * step;
-      const yMin = centerY - (point.max * centerY);
-      const yMax = centerY - (point.min * centerY);
+      const yMin = centerY - point.max * centerY;
+      const yMax = centerY - point.min * centerY;
       path += `M ${x} ${yMin} L ${x} ${yMax} `;
     });
 
@@ -342,129 +373,120 @@ const SVGVolumeCurveEditor = () => {
 
   return (
     <div className="w-full max-w-full mx-auto p-4 overflow-visible bg-base-300 rounded-lg shadow-lg">
-      <div className="mb-4">
-        <input type="file" accept="audio/*" onChange={handleAudioUpload} className="file-input file-input-bordered file-input-primary w-full max-w-xs" />
-        <button onClick={playAudio} disabled={!audioBuffer} className="btn btn-primary ml-2">
-          Play
-        </button>
-        <button onClick={pauseAudio} disabled={!audioBuffer} className="btn btn-secondary ml-2">
-          Pause
-        </button>
-      </div>
-      <div className="relative w-full h-[200px] overflow-visible">
-        <svg
-          ref={svgRef}
-          width={svgWidth}
-          height={totalHeight}
-          viewBox={`0 0 ${svgWidth} ${totalHeight}`}
-          className="w-full h-full rounded-lg bg-base-100 shadow-inner"
-          onMouseMove={(e) => drag(e.clientX, e.clientY)}
-          onMouseUp={endDragging}
-          onMouseLeave={endDragging}
-          onTouchMove={(e) => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            drag(touch.clientX, touch.clientY);
-          }}
-          onTouchEnd={(e) => {
-            e.preventDefault();
-            endDragging();
-          }}
-          onClick={(e) => handleSeek(e.clientX)}
-        >
-          <defs>
-            <linearGradient id="waveformGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(255,255,255,0.2)" />
-              <stop offset="100%" stopColor="rgba(255,255,255,0.05)" />
-            </linearGradient>
-          </defs>
-          {/* Waveform */}
-          <path
-            d={drawWaveform()}
-            fill="none"
-            stroke="url(#waveformGradient)"
-            strokeWidth={1}
-          />
-          {/* Volume Curve */}
-          <path
-            d={pathD}
-            fill="none"
-            stroke="oklch(var(--p))"
-            strokeWidth={lineThickness}
-            className="transition-all duration-100 ease-in-out"
-            onMouseDown={(e) => addPoint(e.clientX, e.clientY)}
-            onTouchStart={(e) => {
+      <AudioControls
+        handleAudioUpload={handleAudioUpload}
+        playAudio={playAudio}
+        pauseAudio={pauseAudio}
+        stopAudio={stopAudio}
+        audioBuffer={audioBuffer}
+      />
+      <div className="relative w-full h-full overflow-visible">
+        <div style={{ minWidth: svgWidth }}>
+          <svg
+            ref={svgRef}
+            width={svgWidth}
+            height={totalHeight}
+            viewBox={`0 0 ${svgWidth} ${totalHeight}`}
+            className="w-full rounded-lg bg-base-100 shadow-inner"
+            onMouseMove={(e) => drag(e.clientX, e.clientY)}
+            onMouseUp={endDragging}
+            onMouseLeave={endDragging}
+            onTouchMove={(e) => {
               e.preventDefault();
               const touch = e.touches[0];
-              addPoint(touch.clientX, touch.clientY);
+              drag(touch.clientX, touch.clientY);
             }}
-          />
-          {/* Playhead */}
-          <line
-            x1={getPlayheadPosition()}
-            y1={0}
-            x2={getPlayheadPosition()}
-            y2={totalHeight}
-            stroke="oklch(var(--s))"
-            strokeWidth={2}
-            pointerEvents="none"
-          />
-          {/* Points */}
-          {points.map((point) => {
-            const isActive =
-              point.id === draggedPointId || point.id === focusedPointId;
-            const percentY = (point.y / svgHeight) * 100;
-            const screenX = point.x;
-            const screenY = dataYToScreenY(point.y);
-            const { x: textX, y: textY, textAnchor } = getTextPosition(
-              screenX,
-              point.y
-            );
-            return (
-              <g key={point.id}>
-                <circle
-                  cx={screenX}
-                  cy={screenY}
-                  r={pointRadius}
-                  className="fill-secondary hover:fill-secondary-focus transition-colors duration-300"
-                  onMouseDown={(e) => {
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              endDragging();
+            }}
+            onClick={(e) => handleSeek(e.clientX)}
+          >
+            <defs>
+              <linearGradient
+                id="waveformGradient"
+                x1="0%"
+                y1="0%"
+                x2="0%"
+                y2="100%"
+              >
+                <stop offset="0%" stopColor="rgba(255,255,255,0.2)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,0.05)" />
+              </linearGradient>
+            </defs>
+            {/* Waveform */}
+            <Waveform
+              drawWaveform={drawWaveform()}
+              waveformGradientId="waveformGradient"
+            />
+            {/* Volume Curve */}
+            <VolumeCurve
+              pathD={pathD}
+              lineThickness={lineThickness}
+              addPoint={addPoint}
+              onMouseDown={(e) => addPoint(e.clientX, e.clientY)}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                addPoint(touch.clientX, touch.clientY);
+              }}
+            />
+            {/* Playhead */}
+            <Playhead
+              position={getPlayheadPosition()}
+              totalHeight={totalHeight}
+            />
+            {/* Points */}
+            {points.map((point) => {
+              const isActive =
+                point.id === draggedPointId || point.id === focusedPointId;
+              const percentY = (point.y / svgHeight) * 100;
+              const screenX = point.x;
+              const screenY = dataYToScreenY(point.y);
+              const {
+                x: textX,
+                y: textY,
+                textAnchor,
+              } = getTextPosition(screenX, point.y);
+              return (
+                <Point
+                  key={point.id}
+                  point={point}
+                  isActive={isActive}
+                  percentY={percentY}
+                  screenX={screenX}
+                  screenY={screenY}
+                  textX={textX}
+                  textY={textY}
+                  textAnchor={textAnchor}
+                  handleMouseDown={(e) => {
                     e.preventDefault();
                     startDragging(point.id, e.clientX, e.clientY);
                   }}
-                  onTouchStart={(e) => {
+                  handleTouchStart={(e) => {
                     e.preventDefault();
                     const touch = e.touches[0];
                     startDragging(point.id, touch.clientX, touch.clientY);
                   }}
-                  onDoubleClick={() => removePoint(point.id)}
-                  onTouchEnd={(e) => handleTap(point.id, e)}
-                  onMouseEnter={() => setFocusedPointId(point.id)}
-                  onMouseLeave={() => setFocusedPointId(null)}
+                  handleDoubleClick={() => removePoint(point.id)}
+                  handleTouchEnd={(e) => handleTap(point.id, e)}
+                  handleMouseEnter={() => setFocusedPointId(point.id)}
+                  handleMouseLeave={() => setFocusedPointId(null)}
+                  svgHeight={svgHeight}
+                  percentageTextSize={percentageTextSize}
+                  textPadding={textPadding}
                 />
-                {isActive && (
-                  <text
-                    x={textX}
-                    y={textY}
-                    fontSize={percentageTextSize}
-                    textAnchor={textAnchor}
-                    fill="oklch(var(--nc))"
-                    className="font-semibold"
-                  >
-                    {`${percentY.toFixed(0)}%`}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
+              );
+            })}
+          </svg>
+        </div>
       </div>
-      <p className="text-sm text-center mt-2 text-base-content">
-        Tap on the line to add points. Drag to move. Double-tap to remove.
-        {getCurrentPercentage() !== null && ` Current point: ${getCurrentPercentage()}%`}
-      </p>
-      <p className="text-sm text-center mt-2 text-base-content">
-        Current Time: {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
-      </p>
+      <InfoText
+        currentPercentage={getCurrentPercentage()}
+        currentTime={currentTime}
+        duration={duration}
+        currentVolume={currentVolume}
+      />
     </div>
   );
 };

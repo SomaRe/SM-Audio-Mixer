@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import AudioVolumeCurveEditor from './AudioVolumeCurveEditor'
 import SVGVolumeCurveEditor from './SVGVolumeCurveEditor'
 
 function App() {
