@@ -1,11 +1,11 @@
 import React from 'react';
 
-const Waveform = ({ drawWaveform, waveformGradientId }) => {
+const Waveform = ({ drawWaveform, waveformGradientId, strokeColor }) => {
   return (
     <path
       d={drawWaveform}
       fill="none"
-      stroke={`url(#${waveformGradientId})`}
+      stroke={strokeColor}
       strokeWidth={1}
     />
   );

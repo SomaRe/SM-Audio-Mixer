@@ -19,6 +19,7 @@ const Point = ({
   svgHeight,
   percentageTextSize,
   textPadding,
+  color,
 }) => {
   return (
     <g>
@@ -26,7 +27,8 @@ const Point = ({
         cx={screenX}
         cy={screenY}
         r={pointRadius}
-        className="fill-secondary hover:fill-secondary-focus transition-colors duration-300 cursor-pointer"
+        fill={color}
+        className="hover:opacity-75 transition-opacity duration-300 cursor-pointer"
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
         onDoubleClick={handleDoubleClick}
@@ -40,8 +42,9 @@ const Point = ({
           y={textY}
           fontSize={percentageTextSize}
           textAnchor={textAnchor}
-          fill="oklch(var(--nc))"
+          fill={color}
           className="font-semibold"
+          pointerEvents={'none'}
         >
           {`${percentY.toFixed(0)}%`}
         </text>
