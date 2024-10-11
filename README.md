@@ -5,8 +5,9 @@
 This project involves the development of a web-based video and audio editor. The application allows users to:
 
 - Upload a video file.
-- Add two additional audio tracks: **Voice** and **Music**.
-- Adjust the volume of each audio track independently at different points in the timeline.
+- Extract audio from video and an option to upload additional **Music**.
+- Adjust the volume of each audio track independently at different points in the timeline using bezier curves.
+- Provide a preview of the edited video with audio adjustments.
 
 The goal is to provide a user-friendly interface where users can seamlessly edit their videos with customized audio enhancements.
 
@@ -14,23 +15,24 @@ The goal is to provide a user-friendly interface where users can seamlessly edit
 
 1. **Video Upload Functionality**: Users can upload their own video files for editing.
 2. **Audio Track Uploads**:
-   - **Voice Track**: An additional audio file, typically voice-over or narration.
+   - **Voice Track**: Extracted from Video, typically voice-over or narration.
    - **Music Track**: Background music to enhance the video.
 3. **Timeline-Based Volume Control**:
    - Interactive timeline where users can adjust the volume of each audio track.
-   - Volume adjustments are smooth, utilizing bezier curve-like adjustments similar to Photoshop's pen tool.
+   - Volume adjustments are smooth, utilizing bezier curve.
 4. **Web-Based Editing Interface**: An intuitive and responsive interface accessible via web browsers.
-5. **Python Backend Processing**: Heavy-lifting tasks handled by a Python backend for efficient processing.
+5. **Future: Python Backend Processing**: Heavy-lifting tasks handled by a Python backend for efficient processing.
+6. **Future: WebGPU Support**: GPU-accelerated processing for improved performance utilizing users GPU.
 
 ## Technical Stack
 
 - **Frontend**:
   - **Languages**: HTML, CSS, JavaScript.
-  - **Framework**: React.js (recommended for its component-based architecture and state management).
+  - **Framework**: React.js
 - **Backend**:
   - **Language**: Python.
-  - **Framework**: Flask or FastAPI (recommended for building RESTful APIs).
-- **Audio Processing**:
+  - **Framework**: Flask
+- **Future: Audio Processing**:
   - **Libraries**: `pydub`, `moviepy` (for audio manipulation and processing).
 
 ## Implementation Plan
@@ -56,10 +58,10 @@ The goal is to provide a user-friendly interface where users can seamlessly edit
 
 **b. Responsiveness and Design**
 
-- Ensure the interface is responsive and works well on various screen sizes and devices.
+- Future: Ensure the interface is responsive and works well on various screen sizes and devices.
 - Apply consistent styling and theming for a professional look.
 
-### 2. Backend Development
+### 2. Future: Backend Development
 
 **a. Server Setup**
 
@@ -82,7 +84,7 @@ The goal is to provide a user-friendly interface where users can seamlessly edit
   - Process and combine video with adjusted audio tracks.
   - Provide a downloadable link or initiate download upon completion.
 
-### 3. Audio Processing
+### 3. Future: Audio Processing
 
 **a. Audio Extraction and Manipulation**
 
@@ -95,7 +97,7 @@ The goal is to provide a user-friendly interface where users can seamlessly edit
   - Overlay the voice and music tracks onto the original or extracted audio.
   - Ensure synchronization with the video timeline.
 
-**b. Final Video Generation**
+**b. Future: Final Video Generation**
 
 - Combine the edited audio with the original video using `moviepy`.
 - Handle encoding and ensure the final video maintains quality and synchronization.
@@ -119,56 +121,3 @@ The goal is to provide a user-friendly interface where users can seamlessly edit
 6. **Final Output**:
    - The backend generates the final video file.
    - Provides the user with a download link or automatic download.
-
-### 5. Additional Considerations
-
-- **Performance Optimization**:
-  - Handle large file uploads efficiently.
-  - Implement asynchronous processing if necessary.
-- **Error Handling**:
-  - Provide clear error messages for file upload failures or processing errors.
-- **Security**:
-  - Validate and sanitize all user inputs.
-  - Secure file storage and access controls.
-- **Scalability**:
-  - Design the application to handle multiple users and sessions concurrently.
-- **User Experience Enhancements**:
-  - Implement undo/redo functionality on the timeline adjustments.
-  - Allow users to preview changes before final processing.
-- **Testing**:
-  - Thoroughly test with various video and audio formats.
-  - Unit tests for backend processing functions.
-
-## Next Steps
-
-1. **Set Up Development Environment**:
-   - Configure the development tools and frameworks.
-   - Set up version control (e.g., Git).
-2. **Frontend Prototype**:
-   - Build a basic React.js application.
-   - Create initial components for file uploads and timeline display.
-3. **Implement File Upload Functionality**:
-   - Enable users to upload video and audio files from the frontend.
-   - Test file transfer to the backend.
-4. **Develop Timeline and Volume Control UI**:
-   - Implement the interactive timeline with volume adjustment features.
-   - Ensure smooth and intuitive user interactions.
-5. **Backend Setup and API Development**:
-   - Establish the Python server with Flask or FastAPI.
-   - Create endpoints for file handling and processing.
-6. **Audio Processing Functions**:
-   - Write functions to manipulate audio using `pydub` or `moviepy`.
-   - Test volume adjustments and audio merging.
-7. **Frontend and Backend Integration**:
-   - Connect the frontend interface with backend APIs.
-   - Ensure data flows correctly between client and server.
-8. **Testing and Refinement**:
-   - Perform end-to-end testing of the application.
-   - Gather feedback and make necessary improvements.
-9. **Additional Features and Optimizations**:
-   - Implement any remaining features.
-   - Optimize performance and resource utilization.
-
-## Conclusion
-
-By following this implementation plan, the project will develop a functional and user-friendly web-based video and audio editor. The combination of a React.js frontend and a Python backend ensures a robust and scalable application. Attention to user experience and technical efficiency will make this tool valuable for users needing to edit videos with customized audio tracks.
