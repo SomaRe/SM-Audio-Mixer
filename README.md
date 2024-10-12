@@ -24,6 +24,10 @@ The goal is to provide a user-friendly interface where users can seamlessly edit
 5. **Future: Python Backend Processing**: Heavy-lifting tasks handled by a Python backend for efficient processing.
 6. **Future: WebGPU Support**: GPU-accelerated processing for improved performance utilizing users GPU.
 
+## DEMO Video
+
+[![YouTube Video](Screenshot.png)](https://youtu.be/e2H6YSYI-vI)
+
 ## Technical Stack
 
 - **Frontend**:
